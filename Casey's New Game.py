@@ -36,9 +36,6 @@ BLACK = (0, 0, 0)
 PURPLE = (197, 122, 255)
 
 # Fonts
-FONT_SM = pygame.font.Font("assets/fonts/minya_nouvelle_bd.ttf", 32)
-FONT_MD = pygame.font.Font("assets/fonts/minya_nouvelle_bd.ttf", 64)
-FONT_LG = pygame.font.Font("assets/fonts/thats_super.ttf", 72)
 Bubblegum_Font = pygame.font.Font("assets/fonts/Bubblegum.ttf", 32)
 Chocolate_Bar_Font = pygame.font.Font("assets/fonts/Chocolate Bar.otf", 72)
 
@@ -99,6 +96,8 @@ powerup_img = load_image("assets/Items/powerup_bunny.png")
 carrot_img = load_image("assets/Items/carrot.png")
 portal_img = load_image("assets/Items/portal_yellow.png")
 gold_carrot_img = load_image("assets/Items/carrot_gold.png")
+bubble_img = load_image("assets/Items/bubble.png")
+bolt_img = load_image("assets/Particles/lighting_blue.png")
 
 spikeball_img1 = load_image("assets/Enemies/spikeBall1.png")
 spikeball_img2 = load_image("assets/Enemies/spikeBall2.png")
@@ -108,6 +107,10 @@ spikeman_img = load_image("assets/Enemies/spikeMan_stand.png")
 spikeman_walk1 = load_image("assets/Enemies/spikeMan_walk1.png")
 spikeman_walk2 = load_image("assets/Enemies/spikeMan_walk2.png")
 spikeman_images = [spikeman_walk1, spikeman_walk2]
+
+flyman_img1 = load_image("assets/Enemies/flyMan_stand.png")
+flyman_img2 = load_image("assets/Enemies/flyMan_fly.png")
+flyman_images = [flyman_img1, flyman_img2]
 
 # Sounds
 JUMP_SOUND = pygame.mixer.Sound("assets/sounds/jump.wav")
@@ -355,12 +358,6 @@ class Enemy(Entity):
     def is_near(self, hero):
         return abs(self.rect.x - hero.rect.x) < 2 * WIDTH
 
-    def update(self, level, hero):
-        if self.is_near(hero):
-            self.apply_gravity(level)
-            self.move_and_process_blocks(level.blocks)
-            self.check_world_boundaries(level)
-            self.set_images()
 
     def reset(self):
         self.rect.x = self.start_x
@@ -404,6 +401,13 @@ class Bear(Enemy):
             elif self.vy < 0:
                 self.rect.top = block.rect.bottom
                 self.vy = 0
+
+    def update(self, level, hero):
+        if self.is_near(hero):
+            self.apply_gravity(level)
+            self.move_and_process_blocks(level.blocks)
+            self.check_world_boundaries(level)
+            self.set_images()
 
 class Monster(Enemy):
     def __init__(self, x, y, images):
@@ -454,6 +458,55 @@ class Monster(Enemy):
         if reverse:
             self.reverse()
 
+    def update(self, level, hero):
+        if self.is_near(hero):
+            self.apply_gravity(level)
+            self.move_and_process_blocks(level.blocks)
+            self.check_world_boundaries(level)
+            self.set_images()
+
+class FlyMan(Enemy):
+    
+    def __init__(self, x, y, images):
+        super().__init__(x, y, images)
+
+        self.start_x = x
+        self.start_y = y
+        self.start_vx = -2
+        self.start_vy = 0
+
+        self.vx = self.start_vx
+        self.vy = self.start_vy
+
+    def move_and_process_blocks(self, blocks):
+        self.rect.x += self.vx
+        hit_list = pygame.sprite.spritecollide(self, blocks, False)
+
+        for block in hit_list:
+            if self.vx > 0:
+                self.rect.right = block.rect.left
+                self.reverse()
+            elif self.vx < 0:
+                self.rect.left = block.rect.right
+                self.reverse()
+
+        self.rect.y += self.vy
+        hit_list = pygame.sprite.spritecollide(self, blocks, False)
+
+        for block in hit_list:
+            if self.vy > 0:
+                self.rect.bottom = block.rect.top
+                self.vy = 0
+            elif self.vy < 0:
+                self.rect.top = block.rect.bottom
+                self.vy = 0
+
+    def update(self, level, hero):
+        if self.is_near(hero):
+            self.move_and_process_blocks(level.blocks)
+            self.check_world_boundaries(level)
+            self.set_images()
+
 class OneUp(Entity):
     def __init__(self, x, y, image):
         super().__init__(x, y, image)
@@ -475,6 +528,15 @@ class Powerup(Entity):
 
     def apply(self, character):
         character.score += 100
+
+class Bolt(Entity):
+    def __init__(self, x, y, image):
+        super().__init__(x, y, image)
+
+    def apply(self, character):
+        character.score -= 200
+        if character.score < 0:
+            character.score = 0
 
 class Flag(Entity):
     def __init__(self, x, y, image):
@@ -522,6 +584,10 @@ class Level():
             x, y = item[0] * GRID_SIZE, item[1] * GRID_SIZE
             self.starting_enemies.append(Monster(x, y, spikeball_images))
 
+        for item in map_data['flyman']:
+            x, y = item[0] * GRID_SIZE, item[1] * GRID_SIZE
+            self.starting_enemies.append(FlyMan(x, y, flyman_images))
+
         for item in map_data['coins']:
             x, y = item[0] * GRID_SIZE, item[1] * GRID_SIZE
             self.starting_coins.append(Coin(x, y, coin_img))
@@ -537,6 +603,10 @@ class Level():
         for item in map_data['powerup']:
             x, y = item[0] * GRID_SIZE, item[1] * GRID_SIZE
             self.starting_powerups.append(Powerup(x, y, gold_carrot_img))
+
+        for item in map_data['bolt']:
+            x, y = item[0] * GRID_SIZE, item[1] * GRID_SIZE
+            self.starting_powerups.append(Bolt(x, y, bolt_img))
 
         for item in map_data['flag']:
             x, y = item[0] * GRID_SIZE, item[1] * GRID_SIZE
@@ -715,9 +785,10 @@ class Game():
         line2 = Chocolate_Bar_Font.render("You are the ultImate bunny runner", 1, WHITE)
         line3 = Chocolate_Bar_Font.render("Score: " + str(self.hero.score), 1, WHITE)
         line4 = Chocolate_Bar_Font.render("Press R to Run AgaIn", 1, WHITE)
+        line5 = Bubblegum_Font.render("Bunny Run created by: Casey Groves", 1, WHITE)
 
         x1 = WIDTH / 2 - line1.get_width() / 2;
-        y1 = HEIGHT / 4;
+        y1 = HEIGHT / 5;
 
         x2 = WIDTH / 2 - line2.get_width() / 2;
         y2 = y1 + line2.get_height() + 16;
@@ -728,11 +799,15 @@ class Game():
         x4 = WIDTH / 2 - line4.get_width() / 2;
         y4 = y3 + line4.get_height() + 16;
 
+        x5 = WIDTH / 2 - line5.get_width() / 2;
+        y5 = y4 + line5.get_height() + 64;
+
         pygame.draw.rect(surface, PURPLE, [0, 0, WIDTH, HEIGHT])
         surface.blit(line1, (x1, y1))
         surface.blit(line2, (x2, y2))
         surface.blit(line3, (x3, y3))
         surface.blit(line4, (x4, y4))
+        surface.blit(line5, (x5, y5))
 
     def process_events(self):
         for event in pygame.event.get():
@@ -747,6 +822,10 @@ class Game():
                 elif self.stage == Game.PLAYING:
                     if event.key == JUMP:
                         self.hero.jump(self.level.blocks)
+                    if event.key == pygame.K_f:
+                        self.hero.speed = 10
+                    elif event.key != pygame.K_f:
+                        self.hero.speed = 5
 
                 elif self.stage == Game.PAUSED:
                     pass
