@@ -3,6 +3,7 @@
 import json
 import pygame
 import sys
+import time
 
 pygame.mixer.pre_init()
 pygame.init()
@@ -98,6 +99,7 @@ portal_img = load_image("assets/Items/portal_yellow.png")
 gold_carrot_img = load_image("assets/Items/carrot_gold.png")
 bubble_img = load_image("assets/Items/bubble.png")
 bolt_img = load_image("assets/Particles/lighting_blue.png")
+jetpack_img = load_image("assets/Items/jetpack.png")
 
 spikeball_img1 = load_image("assets/Enemies/spikeBall1.png")
 spikeball_img2 = load_image("assets/Enemies/spikeBall2.png")
@@ -165,12 +167,14 @@ class Character(Entity):
         self.vy = 0
         self.facing_right = True
         self.on_ground = True
+        self.jetpack_on = False
 
         self.score = 0
         self.lives = 3
         self.hearts = 3
         self.max_hearts = 3
         self.invincibility = 0
+        self.jetpack_time = 0
         self.coins = 0
 
     def move_left(self):
@@ -294,9 +298,18 @@ class Character(Entity):
         self.hearts = self.max_hearts
         self.invincibility = 0
 
+    def calculate_jetpack_time(self):
+        if self.jetpack_time <= 0:
+            self.jetpack_on = False
+        else:
+            self.jetpack_time -= 1
+
     def update(self, level):
         self.process_enemies(level.enemies)
-        self.apply_gravity(level)
+        if self.jetpack_on == True:
+            pass
+        else:
+            self.apply_gravity(level)
         self.move_and_process_blocks(level.blocks)
         self.check_world_boundaries(level)
         self.set_image()
@@ -538,6 +551,29 @@ class Bolt(Entity):
         if character.score < 0:
             character.score = 0
 
+class Jetpack(Entity):
+    def __init__(self, x, y, image):
+        super().__init__(x, y, image)
+        
+    def apply(self, character):
+        character.jetpack_on = True
+        character.jetpack_time = 3 * FPS
+        character.vy = 0
+        character.vx = 10
+        game.hero.rect.y = 64
+        if character.jetpack_time > 0:
+            pass
+        elif character.jetpack_time <= 0:
+            character.jetpack_time = 0
+        
+
+class Bubble(Entity):
+    def __init__(self, x, y, image):
+        super().__init__(x, y, image)
+
+    def apply(self, character):
+        character.invincibility = int(3 * FPS)
+
 class Flag(Entity):
     def __init__(self, x, y, image):
         super().__init__(x, y, image)
@@ -556,7 +592,6 @@ class Level():
         self.coins = pygame.sprite.Group()
         self.powerups = pygame.sprite.Group()
         self.flag = pygame.sprite.Group()
-
         self.active_sprites = pygame.sprite.Group()
         self.inactive_sprites = pygame.sprite.Group()
 
@@ -567,6 +602,7 @@ class Level():
 
         self.width = map_data['width'] * GRID_SIZE
         self.height = map_data['height'] * GRID_SIZE
+        self.time = map_data['time'] * FPS
 
         self.start_x = map_data['start'][0] * GRID_SIZE
         self.start_y = map_data['start'][1] * GRID_SIZE
@@ -607,6 +643,14 @@ class Level():
         for item in map_data['bolt']:
             x, y = item[0] * GRID_SIZE, item[1] * GRID_SIZE
             self.starting_powerups.append(Bolt(x, y, bolt_img))
+
+        for item in map_data['jetpack']:
+            x, y = item[0] * GRID_SIZE, item[1] * GRID_SIZE
+            self.starting_powerups.append(Jetpack(x, y, jetpack_img))
+
+        for item in map_data['bubble']:
+            x, y = item[0] * GRID_SIZE, item[1] * GRID_SIZE
+            self.starting_powerups.append(Bubble(x, y, bubble_img))
 
         for item in map_data['flag']:
             x, y = item[0] * GRID_SIZE, item[1] * GRID_SIZE
@@ -676,6 +720,11 @@ class Level():
 
         self.inactive_sprites.draw(self.inactive_layer)
 
+    def calculate_time(self):
+        self.time -= 1
+        if self.time <= 0:
+            self.time = 0
+
     def reset(self):
         self.enemies.add(self.starting_enemies)
         self.coins.add(self.starting_coins)
@@ -713,6 +762,7 @@ class Game():
         self.current_level += 1
         self.start()
         self.stage = Game.START
+        self.hero.score += (self.level.time * 5)
 
     def reset(self):
         self.hero = Character(bunny_images)
@@ -769,16 +819,24 @@ class Game():
 
     def display_stats(self, surface):
         hearts_text = Bubblegum_Font.render("Hearts: " + str(self.hero.hearts)+ "/" + str(self.hero.max_hearts), 1, WHITE)
-        lives_text = Bubblegum_Font.render("Lives: " + str(self.hero.lives), 1, WHITE)
+        lives_text = Bubblegum_Font.render("x  " + str(self.hero.lives), 1, WHITE)
         score_text = Bubblegum_Font.render("Score: " + str(self.hero.score), 1, WHITE)
         level_text = Bubblegum_Font.render("Level: " + str(self.current_level + 1), 1, WHITE)
         coins_text = Bubblegum_Font.render("Coins: " + str(self.hero.coins), 1, WHITE)
+        time_text = Bubblegum_Font.render("Time Remaining: " + str(self.level.time//60), 1, WHITE)
 
         surface.blit(score_text, (WIDTH - score_text.get_width() - 32, 32))
         surface.blit(hearts_text, (32, 32))
-        surface.blit(lives_text, (32, 64))
-        surface.blit(level_text, (32, 96))
-        surface.blit(coins_text, (32, 128))
+        surface.blit(bunny_idle, (32, 64))
+        surface.blit(lives_text, (128, 80))
+        surface.blit(level_text, (32, 128))
+        surface.blit(coins_text, (32, 160))
+        surface.blit(time_text, (32, 192))
+        if self.hero.jetpack_on == True:
+            jetpack_text = Bubblegum_Font.render("Jetpack Time: " + str(self.hero.jetpack_time), 1, WHITE)
+            surface.blit(jetpack_text, (32, 224))
+        else:
+            pass
         
     def display_credits(self, surface):
         line1 = Chocolate_Bar_Font.render("CONGRATULATIONS!", 1, WHITE)
@@ -840,17 +898,25 @@ class Game():
         pressed = pygame.key.get_pressed()
 
         if self.stage == Game.PLAYING:
-            if pressed[LEFT]:
-                self.hero.move_left()
-            elif pressed[RIGHT]:
-                self.hero.move_right()
+            if self.hero.jetpack_on == False:
+                if pressed[LEFT]:
+                    self.hero.move_left()
+                elif pressed[RIGHT]:
+                    self.hero.move_right()
+                else:
+                    self.hero.stop()
             else:
-                self.hero.stop()
+                pass
 
     def update(self):
         if self.stage == Game.PLAYING:
             self.hero.update(self.level)
             self.level.enemies.update(self.level, self.hero)
+            self.level.calculate_time()
+            if self.hero.jetpack_on == True:
+                self.hero.calculate_jetpack_time()
+            else:
+                pass
 
         if self.level.completed:
             if self.current_level < len(levels) - 1:
@@ -859,7 +925,7 @@ class Game():
                 self.stage = Game.VICTORY
             pygame.mixer.music.stop()
 
-        elif self.hero.lives == 0:
+        elif self.hero.lives == 0 or self.level.time == 0:
             self.stage = Game.GAME_OVER
             pygame.mixer.music.stop()
 
