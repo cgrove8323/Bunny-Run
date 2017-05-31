@@ -5,8 +5,7 @@
 
 ## Setup Instructions
 
-1. Download Python version 3.4.4
-1. Install Pygame version cnkldsnvjsd;fh;uiahdjk
+1. Download Python version 3 with pygame.
 1. Click "Run" at the top of the screen or simply press the F5 key to run the program.
 
 ## How to Play
@@ -44,3 +43,5 @@
 * Level 2: Candy Land
 * Level 3: Sandy Beach
 * Level 4: Snowy Forest
+![GitHub Logo](screenshot1.png)
+![GitHub Logo](screenshot2.png)
